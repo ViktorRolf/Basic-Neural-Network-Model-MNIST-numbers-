@@ -1,0 +1,5 @@
+SAVE_files/*
+!SAVE_files/.gitkeep
+
+MNIST_files/*
+!MNIST_files/.gitkeep
