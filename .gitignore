@@ -3,3 +3,5 @@ SAVE_files/*
 
 MNIST_files/*
 !MNIST_files/.gitkeep
+
+DRAW_files/*
