@@ -28,17 +28,24 @@ flat_ex = flat_data_train[which_example][0]
 image_ex = flat_ex.reshape(28,28)
 label_ex = flat_data_train[which_example][1]
 
-#model.predict_image(flat_ex,print_output=True)
+
 #model.__cost_for_image__(flat_ex,label_ex,print_output=True)
 
 
 model.__cost_for_image__(flat_ex, label_ex, True)
-model.train(epochs=100, images_per_epoch=2000, data_train=flat_data_train)
+old = [model.__weights__[i].copy() for i in range(3)]
+model.train(epochs=1000, images_per_epoch=100, data_train=flat_data_train)
 model.__cost_for_image__(flat_ex, label_ex, True)
+new = [model.__weights__[i].copy() for i in range(3)]
+model.__forward_propagation__(flat_ex,print_output=True)
+print(model.check(flat_data_test))
 
-# plt.imshow(image_ex, cmap='gray', interpolation='nearest')
-# plt.colorbar()
-# plt.show()
+diff = sum([np.linalg.norm(old[i]-new[i]) for i in range(3)])
+print(diff)
+
+plt.imshow(image_ex, cmap='gray', interpolation='nearest')
+plt.colorbar()
+plt.show()
 
 # np.set_printoptions(linewidth=200)
 # print(label_ex)

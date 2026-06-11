@@ -37,7 +37,8 @@ class neural_network:
         return 1/(1+np.exp(-x))
     
     def __sigmoid_prime__(self, x):
-        return 1/(2*(1+np.cosh(x)))
+        s = self.__sigmoid__(x)
+        return s*(1-s)
     
     def __forward_propagation__(self, image: np.array, print_output: bool =False):
         '''
@@ -47,6 +48,9 @@ class neural_network:
         Args:
             image: np.array: Array of real numbers in [0,1] representing input image
             print_output: bool: Should the result be printed
+
+        Returns:
+            prediction: int: Which label is most likely
 
         '''
         node_activations = []
@@ -61,8 +65,10 @@ class neural_network:
         self.__node_activations__ = node_activations
         self.__z_to_layer__ = z_to_layer
 
+        prediction = np.argmax(node_activations[-1])
         if print_output:
-            print( f"Predicted: {np.argmax(node_activations[-1])} with confidence vector: {node_activations[-1]}" )
+            print( f"Predicted: {prediction} with confidence vector: {node_activations[-1]}" )
+        return prediction
 
     def __cost_for_image__(self, image: np.array, correct_label: int, print_output: bool):
         '''
@@ -104,7 +110,7 @@ class neural_network:
         #Prep delta, list of empty arrays and initialize final delta
         delta_at_layer = [np.zeros(self.__number_of_nodes_per_layer__[i]) 
                           for i in range(1,self.__number_of_layers__)]  
-        correct_activations = np.zeros(10)
+        correct_activations = np.zeros(self.__number_of_nodes_per_layer__[-1])
         correct_activations[correct_label] = 1
         delta_at_layer[-1] = np.multiply(2*(self.__node_activations__[-1]-correct_activations),
                                          self.__sigmoid_prime__(self.__z_to_layer__[-1]))
@@ -121,7 +127,16 @@ class neural_network:
                      for i in range(self.__number_of_layers__-1)]
         return delC_delW, delC_delb
 
-    def __gradient_descent__(self, data_train: tuple):
+    def __gradient_descent__(self, data_train: list):
+        '''
+        Performs gradient descent for input data
+
+        Args:
+            data_train: list[tuple]: List of tuples, each tuple is (image, label) as (np.array, int).
+
+        Returns:
+            None
+        '''
 
         W_accumulation = [np.zeros_like(self.__weights__[i]) for i in range(self.__number_of_layers__-1)]
         b_accumulation = [np.zeros_like(self.__biases__[i]) for i in range(self.__number_of_layers__-1)]
@@ -133,15 +148,25 @@ class neural_network:
                 b_accumulation[i] += delC_delb[i]
         
         num_images = len(data_train)
-        step_size = 5
+        step_size = 0.1
         for i in range(self.__number_of_layers__-1):
-            self.__weights__[i] -= step_size*delC_delW[i]/num_images
-            self.__biases__[i] -= step_size*delC_delb[i]/num_images
+            self.__weights__[i] -= step_size*W_accumulation[i]/num_images
+            self.__biases__[i] -= step_size*b_accumulation[i]/num_images
 
-    def train(self, epochs: int, images_per_epoch: int, data_train: tuple):
+
+    def train(self, epochs: int, images_per_epoch: int, data_train: list):
         for j in range(epochs):
-            selected_ints = np.random.randint(0, len(data_train), size=images_per_epoch)
+            selected_ints = selected_ints = np.random.choice(len(data_train),size=images_per_epoch, replace=False)
             selected_data = [data_train[i] for i in selected_ints]
             self.__gradient_descent__(selected_data)
             if j%10 ==0:
                 print(f"epoch {j} done")
+
+    def check(self, data_test: list):
+        correct_predictions = 0
+        for data in data_test:
+            prediction = self.__forward_propagation__(data[0])
+            if prediction == data[1]:
+                correct_predictions += 1
+        part_correct = correct_predictions/len(data_test)
+        return part_correct
