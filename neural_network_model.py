@@ -1,5 +1,6 @@
 import numpy as np
-
+import sys
+import pickle
 
 class neural_network:
     def __init__(self):
@@ -60,14 +61,19 @@ class neural_network:
 
         for i in range(self.__number_of_layers__-1):
             z_to_layer.append(self.__weights__[i] @ node_activations[i] + self.__biases__[i])
-            node_activations.append(self.__sigmoid__(z_to_layer[i]))
+            if i < self.__number_of_layers__-2:
+                node_activations.append(self.__sigmoid__(z_to_layer[i]))
+            else:
+                #softmax last layer
+                softmax = np.exp(z_to_layer[i])
+                node_activations.append(softmax/sum(softmax))
 
         self.__node_activations__ = node_activations
         self.__z_to_layer__ = z_to_layer
 
         prediction = np.argmax(node_activations[-1])
         if print_output:
-            print( f"Predicted: {prediction} with confidence vector: {node_activations[-1]}" )
+            print( f"Predicted: {prediction} with confidence vector: {np.round(node_activations[-1],4)}" )
         return prediction
 
     def __cost_for_image__(self, image: np.array, correct_label: int, print_output: bool):
@@ -88,7 +94,8 @@ class neural_network:
         correct_activations = np.zeros(10)
         correct_activations[correct_label] = 1
 
-        cost = np.sum((self.__node_activations__[-1]-correct_activations)**2)
+        cost = -np.sum(np.multiply(correct_activations,np.log(self.__node_activations__[-1])))
+        #cost = np.sum((self.__node_activations__[-1]-correct_activations)**2)
         if print_output:
             print(f"Costs for image is {cost}!")
         return cost
@@ -112,8 +119,9 @@ class neural_network:
                           for i in range(1,self.__number_of_layers__)]  
         correct_activations = np.zeros(self.__number_of_nodes_per_layer__[-1])
         correct_activations[correct_label] = 1
-        delta_at_layer[-1] = np.multiply(2*(self.__node_activations__[-1]-correct_activations),
-                                         self.__sigmoid_prime__(self.__z_to_layer__[-1]))
+        delta_at_layer[-1] = self.__node_activations__[-1] - correct_activations
+        #delta_at_layer[-1] = np.multiply(2*(self.__node_activations__[-1]-correct_activations),
+        #                                 self.__sigmoid_prime__(self.__z_to_layer__[-1]))
         
         # Calculate all delta through recursions
         for i in range(2,self.__number_of_layers__):
@@ -127,12 +135,13 @@ class neural_network:
                      for i in range(self.__number_of_layers__-1)]
         return delC_delW, delC_delb
 
-    def __gradient_descent__(self, data_train: list):
+    def __gradient_descent__(self, data_train: list, step_size: float):
         '''
         Performs gradient descent for input data
 
         Args:
             data_train: list[tuple]: List of tuples, each tuple is (image, label) as (np.array, int).
+            step_size: float: Size modifier for each step of gradient descent
 
         Returns:
             None
@@ -148,25 +157,84 @@ class neural_network:
                 b_accumulation[i] += delC_delb[i]
         
         num_images = len(data_train)
-        step_size = 0.1
         for i in range(self.__number_of_layers__-1):
             self.__weights__[i] -= step_size*W_accumulation[i]/num_images
             self.__biases__[i] -= step_size*b_accumulation[i]/num_images
 
+    def train(self, epochs: int, images_per_epoch: int, data_train: list, step_size: float = 1):
+        '''
+        Trains the algorithm for some amount of epochs
 
-    def train(self, epochs: int, images_per_epoch: int, data_train: list):
+        Args:
+            epochs: int: Amount of batches to train, that is amount of calls to __gradient_descent__
+            images_per_epoch: int: Amount of images per epoch, uniformly selected from data set.
+            data_train: list[tuples]: List of tuples of training data. Pairs of image and label.
+            step_size: float: size modifier for each step, passed to __gradient_descent__
+
+        Returns:
+            None
+        '''
         for j in range(epochs):
             selected_ints = selected_ints = np.random.choice(len(data_train),size=images_per_epoch, replace=False)
             selected_data = [data_train[i] for i in selected_ints]
-            self.__gradient_descent__(selected_data)
+            self.__gradient_descent__(selected_data,step_size)
             if j%10 ==0:
-                print(f"epoch {j} done")
+                sys.stdout.write(f"\r{j}/{epochs} epochs done!")
+                sys.stdout.flush()
+        print()
 
-    def check(self, data_test: list):
+    def check(self, data_test: list, print_output: bool):
+        '''
+        Checks model on training data and gives correct part
+
+        Args:
+            data_test: list: List of tuples of test data
+            print_output. bool: Should output be printed?
+
+        Returns:
+            part_correct: float: How large a share of the data was predicted correctly
+        '''
         correct_predictions = 0
         for data in data_test:
             prediction = self.__forward_propagation__(data[0])
             if prediction == data[1]:
                 correct_predictions += 1
         part_correct = correct_predictions/len(data_test)
+        if print_output:
+            print(f"Correct predictions: {part_correct}")
         return part_correct
+    
+    def save_to(self, savename: str):
+        '''
+        Save model weights and biases
+
+        Args:
+            savename: str: Name of the file, where weights and biases is saved to
+        '''
+        #pack
+        model_params = [self.__weights__,self.__biases__]
+
+        #save
+        folder_path = "SAVE_files/"
+        full_path = folder_path+savename+".pkl"
+        print("Saving to '"+full_path+"'")
+        with open(full_path, "wb") as f:
+            pickle.dump(model_params,f)
+        
+    def load_from(self, savename: str):
+        '''
+        Load model weights and biases
+
+        Args:
+            savename: str: Name of the file, where weights and biases is loaded from
+        '''
+        #load
+        folder_path = "SAVE_files/"
+        full_path = folder_path+savename+".pkl"
+        print("Loading from '"+full_path+"'")
+        with open(full_path, "rb") as f:
+            model_params = pickle.load(f)
+
+        #unpack
+        self.__weights__ = model_params[0]
+        self.__biases__ = model_params[1]
